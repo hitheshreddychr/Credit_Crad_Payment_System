@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -30,3 +31,18 @@ class PaymentResponse(BaseModel):
     amount: Decimal
     currency: str
     message: str
+
+
+class DashboardTransaction(BaseModel):
+    amount: Decimal
+    masked_card_number: str
+    date: str
+    status: str
+
+
+class DashboardSummary(BaseModel):
+    total_transactions: int
+    total_amount_spent: Decimal
+    current_month_spending: Decimal
+    available_credit_limit: Decimal
+    last_5_transactions: List[DashboardTransaction]

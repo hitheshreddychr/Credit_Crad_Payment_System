@@ -1,11 +1,14 @@
+import { useEffect, useState } from "react";
 import {
   CreditCard,
   ArrowUpRight,
   CheckCircle2,
   Receipt,
   Wallet,
+  CircleDollarSign,
 } from "lucide-react";
 import StatCard from "../components/StatCard";
+import { getDashboardSummary } from "../services/dashboardService";
 
 function Dashboard({
   user,
@@ -13,6 +16,27 @@ function Dashboard({
   transactions,
   goTo,
 }) {
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState("");
+
+  const loadDashboardSummary = async () => {
+    try {
+      const data = await getDashboardSummary();
+      setSummary(data);
+      setSummaryError("");
+    } catch {
+      setSummaryError(
+        "Unable to load dashboard summary."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardSummary();
+    }
+  }, [user, transactions]);
+
   const successful = transactions.filter(
     (item) => item.status === "SUCCESS"
   ).length;
@@ -25,6 +49,9 @@ function Dashboard({
     (sum, item) => sum + Number(item.amount || 0),
     0
   );
+
+  const summaryTransactions =
+    summary?.last_5_transactions || [];
 
   return (
     <div className="space-y-7">
@@ -71,14 +98,52 @@ function Dashboard({
         </div>
       </section>
 
+      {summaryError && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-600">
+          {summaryError}
+        </div>
+      )}
+
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total Transactions"
-          value={transactions.length}
+          value={summary?.total_transactions ?? transactions.length}
           subtitle="All payment activity"
           icon={Receipt}
         />
 
+        <StatCard
+          title="Total Amount Spent"
+          value={`₹${Number(
+            summary?.total_amount_spent ?? total
+          ).toFixed(2)}`}
+          subtitle="Total transaction value"
+          icon={CircleDollarSign}
+          iconClass="bg-blue-50 text-blue-600"
+        />
+
+        <StatCard
+          title="Current Month Spending"
+          value={`₹${Number(
+            summary?.current_month_spending ?? 0
+          ).toFixed(2)}`}
+          subtitle="Spending this month"
+          icon={ArrowUpRight}
+          iconClass="bg-orange-50 text-orange-600"
+        />
+
+        <StatCard
+          title="Available Credit"
+          value={`₹${Number(
+            summary?.available_credit_limit ?? 0
+          ).toFixed(2)}`}
+          subtitle="Available credit limit"
+          icon={CreditCard}
+          iconClass="bg-purple-50 text-purple-600"
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Successful Payments"
           value={successful}
@@ -101,6 +166,14 @@ function Dashboard({
           subtitle="Active payment cards"
           icon={CreditCard}
           iconClass="bg-purple-50 text-purple-600"
+        />
+
+        <StatCard
+          title="Latest Activity"
+          value={summaryTransactions.length}
+          subtitle="Recent transactions"
+          icon={Receipt}
+          iconClass="bg-slate-50 text-slate-600"
         />
       </div>
 
@@ -126,57 +199,57 @@ function Dashboard({
           </div>
 
           <div className="mt-6 space-y-3">
-            {transactions.slice(0, 5).map((transaction) => (
-              <div
-                key={
-                  transaction.id ||
-                  transaction.transaction_id
-                }
-                className="flex items-center justify-between rounded-xl bg-slate-50 p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <CreditCard size={20} />
+            {summaryTransactions.map(
+              (transaction, index) => (
+                <div
+                  key={`${transaction.date}-${index}`}
+                  className="flex items-center justify-between rounded-xl bg-slate-50 p-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <CreditCard size={20} />
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        {transaction.masked_card_number}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        {transaction.date
+                          ? new Date(
+                              transaction.date
+                            ).toLocaleString("en-IN")
+                          : "-"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">
-                      {transaction.description ||
-                        "Card Payment"}
+                  <div className="text-right">
+                    <p className="font-bold text-slate-900">
+                      ₹
+                      {Number(
+                        transaction.amount || 0
+                      ).toFixed(2)}
                     </p>
 
-                    <p className="mt-1 text-xs text-slate-400">
-                      {transaction.created_at
-                        ? new Date(
-                            transaction.created_at
-                          ).toLocaleDateString()
-                        : "-"}
-                    </p>
+                    <span
+                      className={`mt-1 inline-block rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                        transaction.status === "SUCCESS"
+                          ? "bg-green-100 text-green-700"
+                          : transaction.status === "FAILED"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+                      {transaction.status}
+                    </span>
                   </div>
                 </div>
+              )
+            )}
 
-                <div className="text-right">
-                  <p className="font-bold text-slate-900">
-                    {transaction.currency}{" "}
-                    {transaction.amount}
-                  </p>
-
-                  <span
-                    className={`mt-1 inline-block rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                      transaction.status === "SUCCESS"
-                        ? "bg-green-100 text-green-700"
-                        : transaction.status === "FAILED"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {transaction.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-
-            {transactions.length === 0 && (
+            {summaryTransactions.length === 0 && (
               <div className="rounded-xl bg-slate-50 p-10 text-center text-sm text-slate-400">
                 No transactions yet.
               </div>
@@ -190,18 +263,42 @@ function Dashboard({
           </h2>
 
           <p className="mt-1 text-sm text-slate-400">
-            Your payment summary
+            Your real-time payment summary
           </p>
 
           <div className="mt-7 rounded-2xl bg-blue-50 p-6">
-            <Wallet className="text-blue-600" size={25} />
+            <Wallet
+              className="text-blue-600"
+              size={25}
+            />
 
             <p className="mt-5 text-sm font-semibold text-blue-600">
-              Total Payment Value
+              Total Amount Spent
             </p>
 
             <p className="mt-2 text-3xl font-extrabold text-slate-900">
-              ₹{total.toFixed(2)}
+              ₹
+              {Number(
+                summary?.total_amount_spent ?? total
+              ).toFixed(2)}
+            </p>
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-green-50 p-6">
+            <CreditCard
+              className="text-green-600"
+              size={25}
+            />
+
+            <p className="mt-5 text-sm font-semibold text-green-600">
+              Available Credit
+            </p>
+
+            <p className="mt-2 text-2xl font-extrabold text-slate-900">
+              ₹
+              {Number(
+                summary?.available_credit_limit ?? 0
+              ).toFixed(2)}
             </p>
           </div>
 

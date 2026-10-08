@@ -35,6 +35,12 @@ class Card(models.Model):
         choices=CARD_CATEGORY_CHOICES,
     )
 
+    credit_limit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=100000.00,
+    )
+
     last_four_digits = models.CharField(
         max_length=4,
     )

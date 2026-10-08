@@ -27,6 +27,7 @@ class CardSerializer(serializers.ModelSerializer):
             "card_category",
             "card_number",
             "cvv",
+            "credit_limit",
             "last_four_digits",
             "masked_card_number",
             "expiry_month",
@@ -51,6 +52,14 @@ class CardSerializer(serializers.ModelSerializer):
         if not 13 <= len(value) <= 19:
             raise serializers.ValidationError(
                 "Card number must contain between 13 and 19 digits."
+            )
+
+        return value
+
+    def validate_credit_limit(self, value):
+        if value < 0:
+            raise serializers.ValidationError(
+                "Credit limit cannot be negative."
             )
 
         return value
