@@ -9,6 +9,22 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --bg-color: #f8fafc;
+  --text-color: #111827;
+  --card-bg: #ffffff;
+  --border-color: #e5e7eb;
+  --input-bg: #ffffff;
+  --muted-color: #6b7280;
+}
+
+[data-theme="dark"] {
+  --bg-color: #111827;
+  --text-color: #f9fafb;
+  --card-bg: #1f2937;
+  --border-color: #374151;
+  --input-bg: #374151;
+  --muted-color: #d1d5db;
 }
 
 * {
@@ -19,11 +35,21 @@ html {
   scroll-behavior: smooth;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--bg-color);
+  color: var(--text-color);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 button,
@@ -60,10 +86,141 @@ input,
 select,
 textarea {
   outline: none;
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+::placeholder {
+  color: var(--muted-color);
+}
+
+/* Dark mode - backgrounds */
+
+[data-theme="dark"] .bg-white {
+  background-color: #1f2937 !important;
+}
+
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-slate-50,
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-slate-100 {
+  background-color: #111827 !important;
+}
+
+[data-theme="dark"] .bg-gray-200,
+[data-theme="dark"] .bg-slate-200 {
+  background-color: #374151 !important;
+}
+
+/* Dark mode - text */
+
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-slate-800 {
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-slate-600 {
+  color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+/* Dark mode - borders */
+
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-slate-100,
+[data-theme="dark"] .border-slate-200 {
+  border-color: #374151 !important;
+}
+
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] .border-slate-300 {
+  border-color: #4b5563 !important;
+}
+
+/* Dark mode - cards and common surfaces */
+
+[data-theme="dark"] .shadow,
+[data-theme="dark"] .shadow-sm,
+[data-theme="dark"] .shadow-md,
+[data-theme="dark"] .shadow-lg,
+[data-theme="dark"] .shadow-xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.35);
+}
+
+/* Dark mode - form controls */
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: #374151 !important;
+  color: #f9fafb !important;
+  border-color: #4b5563 !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] select option {
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+/* Dark mode - tables */
+
+[data-theme="dark"] table {
+  color: #f9fafb;
+}
+
+[data-theme="dark"] thead {
+  background-color: #1f2937 !important;
+}
+
+[data-theme="dark"] tbody {
+  background-color: #1f2937 !important;
+}
+
+[data-theme="dark"] tr {
+  border-color: #374151 !important;
+}
+
+/* Dark mode - common links */
+
+[data-theme="dark"] a:not([class*="text-blue"]):not([class*="text-indigo"]) {
+  color: #e5e7eb;
+}
+
+/* Smooth theme transition */
+
+[data-theme="dark"] *,
+[data-theme="light"] * {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }

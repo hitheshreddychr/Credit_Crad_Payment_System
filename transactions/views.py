@@ -2,11 +2,11 @@ import csv
 import requests
 
 from datetime import datetime, time, timedelta
+from decimal import Decimal
 
-from django.utils import timezone
 from django.conf import settings
-from django.db import transaction as db_transaction
 from django.http import HttpResponse
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 
 from rest_framework import generics, status
@@ -15,13 +15,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cards.models import Card
+from notifications.services import (
+    send_high_value_transaction_email,
+    send_low_credit_email,
+)
 
 from .models import Transaction
 from .serializers import PaymentSerializer, TransactionSerializer
 
 
 FASTAPI_PAYMENT_URL = (
-    f"http://{getattr(settings, 'FASTAPI_HOST', '127.0.0.1')}:" 
+    f"http://{getattr(settings, 'FASTAPI_HOST', '127.0.0.1')}:"
     f"{getattr(settings, 'FASTAPI_PORT', '8001')}"
     "/payments/process/"
 )
@@ -108,6 +112,7 @@ class PaymentProcessView(APIView):
             payment_transaction.failure_reason = (
                 "Payment service is unavailable."
             )
+
             payment_transaction.save(
                 update_fields=[
                     "status",
@@ -144,6 +149,51 @@ class PaymentProcessView(APIView):
 
         if payment_status == "SUCCESS":
             payment_transaction.failure_reason = ""
+
+            if amount > Decimal("5000"):
+                send_high_value_transaction_email(
+                    payment_transaction
+                )
+
+            active_cards = Card.objects.filter(
+                user=request.user,
+                is_active=True,
+            )
+
+            total_credit_limit = sum(
+                (
+                    card_item.credit_limit
+                    for card_item in active_cards
+                ),
+                Decimal("0"),
+            )
+
+            successful_spending = sum(
+                (
+                    transaction.amount
+                    for transaction in Transaction.objects.filter(
+                        user=request.user,
+                        status="SUCCESS",
+                    )
+                ),
+                Decimal("0"),
+            )
+
+            available_credit = (
+                total_credit_limit - successful_spending
+            )
+
+            if (
+                total_credit_limit > 0
+                and available_credit / total_credit_limit
+                < Decimal("0.10")
+            ):
+                send_low_credit_email(
+                    request.user,
+                    available_credit,
+                    total_credit_limit,
+                )
+
         else:
             payment_transaction.failure_reason = (
                 payment_result.get(

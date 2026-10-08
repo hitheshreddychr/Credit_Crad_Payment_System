@@ -53,4 +53,14 @@ urlpatterns = [
         "api/admin/users/",
         include("users.admin_urls"),
     ),
+
+    path(
+        "api/admin/cards/",
+        include("cards.admin_urls"),
+    ),
+
+    path(
+        "api/statements/",
+        include("statements.urls"),
+    ),
 ]

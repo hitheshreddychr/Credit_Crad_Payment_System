@@ -5,7 +5,9 @@ import {
   ReceiptText,
   BarChart3,
   Bell,
+  FileText,
   ShieldCheck,
+  CreditCard as AdminCardIcon,
   UserCircle,
   Settings,
   CircleHelp,
@@ -29,6 +31,11 @@ export default function Layout({
     { id: "transactions", label: "Transactions", icon: ReceiptText },
     { id: "analytics", label: "Payment Analytics", icon: BarChart3 },
     { id: "notifications", label: "Notifications", icon: Bell },
+    {
+    id: "statements",
+    label: "Monthly Statement",
+    icon: FileText,
+  },
   ];
 
   const accountItems = [
@@ -36,6 +43,8 @@ export default function Layout({
     { id: "settings", label: "Settings", icon: Settings },
     { id: "help", label: "Help & Support", icon: CircleHelp },
   ];
+
+  const isAdmin = Boolean(user?.is_admin || user?.is_staff);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -46,8 +55,12 @@ export default function Layout({
           </div>
 
           <div>
-            <p className="text-base font-extrabold text-slate-900">CardPay</p>
-            <p className="text-[10px] text-slate-400">Payment System</p>
+            <p className="text-base font-extrabold text-slate-900">
+              CardPay
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Payment System
+            </p>
           </div>
         </div>
 
@@ -61,6 +74,7 @@ export default function Layout({
               <p className="truncate text-xs font-bold text-slate-800">
                 {user?.username || "User"}
               </p>
+
               <p className="truncate text-[10px] text-slate-400">
                 {user?.email || ""}
               </p>
@@ -68,7 +82,6 @@ export default function Layout({
           </div>
         </div>
 
-        {/* SCROLLABLE MENU */}
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Main Menu
@@ -95,30 +108,48 @@ export default function Layout({
                       active ? "text-blue-600" : ""
                     }`}
                   />
+
                   <span>{item.label}</span>
                 </button>
               );
             })}
           </nav>
 
-          {user?.is_admin || user?.is_staff ? (
+          {isAdmin ? (
             <>
               <p className="mb-2 mt-7 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
               </p>
 
-              <button
-                type="button"
-                onClick={() => setPage("admin")}
-                className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all duration-200 ${
-                  page === "admin"
-                    ? "bg-blue-50 text-blue-600 shadow-sm"
-                    : "text-slate-500 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-blue-600 hover:shadow-sm active:translate-y-0 active:scale-[0.97]"
-                }`}
-              >
-                <ShieldCheck className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                <span>Admin Dashboard</span>
-              </button>
+              <nav className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setPage("admin")}
+                  className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all duration-200 ${
+                    page === "admin"
+                      ? "bg-blue-50 text-blue-600 shadow-sm"
+                      : "text-slate-500 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-blue-600 hover:shadow-sm active:translate-y-0 active:scale-[0.97]"
+                  }`}
+                >
+                  <ShieldCheck className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+
+                  <span>Admin Dashboard</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPage("admin-cards")}
+                  className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all duration-200 ${
+                    page === "admin-cards"
+                      ? "bg-blue-50 text-blue-600 shadow-sm"
+                      : "text-slate-500 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-blue-600 hover:shadow-sm active:translate-y-0 active:scale-[0.97]"
+                  }`}
+                >
+                  <AdminCardIcon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+
+                  <span>Admin Cards</span>
+                </button>
+              </nav>
             </>
           ) : null}
 
@@ -143,6 +174,7 @@ export default function Layout({
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+
                   <span>{item.label}</span>
                 </button>
               );
@@ -150,7 +182,6 @@ export default function Layout({
           </nav>
         </div>
 
-        {/* ALWAYS VISIBLE SIGN OUT */}
         <div className="shrink-0 border-t border-slate-100 bg-white p-3">
           <button
             type="button"
@@ -158,6 +189,7 @@ export default function Layout({
             className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-xs font-semibold text-red-500 transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-sm active:translate-y-0 active:scale-[0.97]"
           >
             <LogOut className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+
             <span>Sign Out</span>
           </button>
         </div>
@@ -166,15 +198,23 @@ export default function Layout({
       <div className="lg:pl-[202px]">
         <header className="sticky top-0 z-30 flex h-[55px] items-center justify-between border-b border-slate-200 bg-white/95 px-6 backdrop-blur">
           <div>
-            <p className="text-[10px] font-medium text-slate-400">CardPay</p>
+            <p className="text-[10px] font-medium text-slate-400">
+              CardPay
+            </p>
+
             <h1 className="text-base font-extrabold capitalize text-slate-900">
-              {page === "admin" ? "Admin Dashboard" : page}
+              {page === "admin"
+                ? "Admin Dashboard"
+                : page === "admin-cards"
+                  ? "Admin Cards"
+                  : page}
             </h1>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="hidden items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-slate-400 sm:flex">
               <Search className="h-4 w-4" />
+
               <input
                 type="text"
                 placeholder="Search..."
@@ -198,8 +238,9 @@ export default function Layout({
                 <p className="text-xs font-bold text-slate-800">
                   {user?.username || "User"}
                 </p>
+
                 <p className="text-[10px] text-slate-400">
-                  {user?.is_admin || user?.is_staff ? "Administrator" : "Customer"}
+                  {isAdmin ? "Administrator" : "Customer"}
                 </p>
               </div>
             </div>
@@ -218,7 +259,9 @@ export default function Layout({
           </div>
         )}
 
-        <main className="min-h-[calc(100vh-55px)] p-6">{children}</main>
+        <main className="min-h-[calc(100vh-55px)] p-6">
+          {children}
+        </main>
       </div>
     </div>
   );

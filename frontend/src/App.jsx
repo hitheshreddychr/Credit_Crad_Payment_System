@@ -7,6 +7,8 @@ import Cards from "./pages/Cards";
 import Payment from "./pages/Payment";
 import Transactions from "./pages/Transactions";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminCards from "./pages/AdminCards";
+import Statements from "./pages/Statements";
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -19,13 +21,18 @@ function App() {
   const [transactions, setTransactions] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [statementLoading, setStatementLoading] = useState(false);
 
-  const isAdmin = Boolean(user?.is_admin || user?.is_staff);
+  const isAdmin = Boolean(
+    user?.is_admin || user?.is_staff
+  );
 
   const getError = (err, fallback) => {
     const data = err.response?.data;
 
-    if (data?.message) return data.message;
+    if (data?.message) {
+      return data.message;
+    }
 
     if (data && typeof data === "object") {
       return Object.values(data).flat().join(" ");
@@ -45,7 +52,10 @@ function App() {
 
   const loadTransactions = async () => {
     try {
-      const response = await api.get("/api/payments/history/");
+      const response = await api.get(
+        "/api/payments/history/"
+      );
+
       const data = response.data;
 
       if (Array.isArray(data)) {
@@ -70,9 +80,20 @@ function App() {
   }, [user]);
 
   const handleLogin = (response) => {
-    localStorage.setItem("access_token", response.data.access);
-    localStorage.setItem("refresh_token", response.data.refresh);
-    localStorage.setItem("user", JSON.stringify(response.data.user));
+    localStorage.setItem(
+      "access_token",
+      response.data.access
+    );
+
+    localStorage.setItem(
+      "refresh_token",
+      response.data.refresh
+    );
+
+    localStorage.setItem(
+      "user",
+      JSON.stringify(response.data.user)
+    );
 
     setUser(response.data.user);
     setPage("dashboard");
@@ -81,7 +102,8 @@ function App() {
   };
 
   const handleLogout = async () => {
-    const refreshToken = localStorage.getItem("refresh_token");
+    const refreshToken =
+      localStorage.getItem("refresh_token");
 
     try {
       if (refreshToken) {
@@ -104,32 +126,58 @@ function App() {
 
   const addCard = async (cardData) => {
     try {
-      const response = await api.post("/api/cards/", {
-        ...cardData,
-        expiry_month: Number(cardData.expiry_month),
-        expiry_year: Number(cardData.expiry_year),
-      });
+      const response = await api.post(
+        "/api/cards/",
+        {
+          ...cardData,
+          expiry_month: Number(
+            cardData.expiry_month
+          ),
+          expiry_year: Number(
+            cardData.expiry_year
+          ),
+        }
+      );
 
-      setCards((current) => [response.data, ...current]);
+      setCards((current) => [
+        response.data,
+        ...current,
+      ]);
+
       setMessage("Card added successfully.");
       setError("");
+
       return true;
     } catch (err) {
-      setError(getError(err, "Unable to add card."));
+      setError(
+        getError(
+          err,
+          "Unable to add card."
+        )
+      );
+
       return false;
     }
   };
 
   const deleteCard = async (cardId) => {
-    if (!window.confirm("Are you sure you want to delete this card?")) {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this card?"
+      )
+    ) {
       return;
     }
 
     try {
-      await api.delete(`/api/cards/${cardId}/`);
+      await api.delete(
+        `/api/cards/${cardId}/`
+      );
 
       setCards((current) =>
-        current.filter((card) => card.id !== cardId)
+        current.filter(
+          (card) => card.id !== cardId
+        )
       );
 
       setMessage("Card deleted successfully.");
@@ -144,10 +192,15 @@ function App() {
       const response = await api.post(
         "/api/payments/process/",
         {
-          card_id: Number(paymentData.card_id),
-          amount: Number(paymentData.amount),
+          card_id: Number(
+            paymentData.card_id
+          ),
+          amount: Number(
+            paymentData.amount
+          ),
           currency: paymentData.currency,
-          description: paymentData.description,
+          description:
+            paymentData.description,
         }
       );
 
@@ -170,6 +223,54 @@ function App() {
       );
 
       return null;
+    }
+  };
+
+  const downloadStatement = async () => {
+    setStatementLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await api.get(
+        "/api/statements/monthly/",
+        {
+          responseType: "blob",
+        }
+      );
+
+      const blob = new Blob(
+        [response.data],
+        {
+          type: "application/pdf",
+        }
+      );
+
+      const url =
+        window.URL.createObjectURL(blob);
+
+      const link =
+        document.createElement("a");
+
+      link.href = url;
+      link.download =
+        "monthly_statement.pdf";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+
+      setMessage(
+        "Monthly statement downloaded successfully."
+      );
+    } catch {
+      setError(
+        "Unable to download monthly statement."
+      );
+    } finally {
+      setStatementLoading(false);
     }
   };
 
@@ -200,6 +301,25 @@ function App() {
           refresh={loadTransactions}
         />
       );
+    }
+
+    if (page === "statements") {
+      return (
+        <Statements
+          downloadStatement={
+            downloadStatement
+          }
+          loading={statementLoading}
+        />
+      );
+    }
+
+    if (
+      (page === "admin-cards" ||
+        page === "adminCards") &&
+      isAdmin
+    ) {
+      return <AdminCards />;
     }
 
     if (page === "admin" && isAdmin) {
