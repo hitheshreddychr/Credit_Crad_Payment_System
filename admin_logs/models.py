@@ -11,6 +11,10 @@ class AdminLog(models.Model):
         ("UPDATE_TRANSACTION", "Update Transaction"),
         ("UPDATE_USER", "Update User"),
         ("DELETE_CARD", "Delete Card"),
+        ("BLOCK_CARD", "Block Card"),
+        ("UNBLOCK_CARD", "Unblock Card"),
+        ("UPDATE_CREDIT_LIMIT", "Update Credit Limit"),
+        ("FRAUD_ALERT", "Fraud Alert"),
         ("OTHER", "Other"),
     ]
 
@@ -27,18 +31,14 @@ class AdminLog(models.Model):
         choices=ACTION_CHOICES,
     )
 
-    description = models.TextField(
-        blank=True,
-    )
+    description = models.TextField(blank=True)
 
     ip_address = models.GenericIPAddressField(
         null=True,
         blank=True,
     )
 
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]

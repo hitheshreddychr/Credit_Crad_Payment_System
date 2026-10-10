@@ -50,6 +50,8 @@ class TransactionSerializer(serializers.ModelSerializer):
             "status",
             "description",
             "failure_reason",
+            "is_suspicious",
+            "fraud_reason",
             "created_at",
             "updated_at",
         ]
@@ -60,6 +62,8 @@ class TransactionSerializer(serializers.ModelSerializer):
             "payment_method",
             "status",
             "failure_reason",
+            "is_suspicious",
+            "fraud_reason",
             "created_at",
             "updated_at",
         ]

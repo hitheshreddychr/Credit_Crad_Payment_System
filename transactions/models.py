@@ -66,6 +66,25 @@ class Transaction(models.Model):
         blank=True,
     )
 
+    is_suspicious = models.BooleanField(
+        default=False,
+    )
+
+    fraud_reason = models.TextField(
+        blank=True,
+    )
+
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+    )
+
+    device_fingerprint = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
     )

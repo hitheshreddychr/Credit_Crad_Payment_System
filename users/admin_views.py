@@ -1,49 +1,40 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 
-from rest_framework import generics, permissions, status
+from rest_framework import generics, status
 from rest_framework.response import Response
 
 from admin_logs.services import create_admin_log
-
+from .permissions import IsSystemAdmin
 from .serializers import UserSerializer
 
 
 User = get_user_model()
 
 
-class IsAdminUser(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and (
-                request.user.is_admin
-                or request.user.is_staff
-            )
-        )
+def get_client_ip(request):
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    return request.META.get("REMOTE_ADDR")
 
 
 class AdminUserListView(generics.ListAPIView):
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsSystemAdmin]
 
     def get_queryset(self):
-        queryset = User.objects.all().order_by(
-            "-created_at"
-        )
+        queryset = User.objects.all().order_by("-created_at")
 
-        search = self.request.query_params.get(
-            "search"
-        )
+        search = self.request.query_params.get("search")
 
         if search:
             queryset = queryset.filter(
                 models.Q(username__icontains=search)
                 | models.Q(email__icontains=search)
-                | models.Q(
-                    phone_number__icontains=search
-                )
+                | models.Q(phone_number__icontains=search)
             )
 
         return queryset
@@ -53,78 +44,63 @@ class AdminUserListView(generics.ListAPIView):
             admin=request.user,
             action="VIEW_TRANSACTION",
             description="Admin viewed registered users.",
-            ip_address=request.META.get(
-                "REMOTE_ADDR"
-            ),
+            ip_address=get_client_ip(request),
         )
 
-        return super().list(
-            request,
-            *args,
-            **kwargs,
-        )
+        return super().list(request, *args, **kwargs)
 
 
-class AdminUserUpdateView(
-    generics.UpdateAPIView
-):
+class AdminUserUpdateView(generics.UpdateAPIView):
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsSystemAdmin]
     http_method_names = ["patch"]
 
     def get_queryset(self):
         return User.objects.all()
 
     def patch(self, request, *args, **kwargs):
-        user = self.get_object()
+        unexpected_fields = set(request.data.keys()) - {"is_active"}
 
-        is_active = request.data.get(
-            "is_active"
-        )
-
-        if is_active is None:
+        if unexpected_fields:
             return Response(
-                {
-                    "message": (
-                        "is_active is required."
-                    )
-                },
+                {"message": "Only is_active can be updated."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        user = self.get_object()
+        is_active = request.data.get("is_active")
 
         if not isinstance(is_active, bool):
             return Response(
-                {
-                    "message": (
-                        "is_active must be true or false."
-                    )
-                },
+                {"message": "is_active must be true or false."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user.is_active = is_active
-        user.save(
-            update_fields=["is_active"]
-        )
+        if user.pk == request.user.pk and not is_active:
+            return Response(
+                {"message": "You cannot deactivate your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        create_admin_log(
-            admin=request.user,
-            action="UPDATE_USER",
-            description=(
-                f"Admin updated user "
-                f"{user.username} active status "
-                f"to {user.is_active}."
-            ),
-            ip_address=request.META.get(
-                "REMOTE_ADDR"
-            ),
-        )
+        previous_status = user.is_active
+        user.is_active = is_active
+        user.save(update_fields=["is_active"])
+
+        if previous_status != is_active:
+            create_admin_log(
+                admin=request.user,
+                action="UPDATE_USER",
+                description=(
+                    f"Admin changed user {user.username} "
+                    f"active status from {previous_status} "
+                    f"to {is_active}."
+                ),
+                ip_address=get_client_ip(request),
+            )
 
         return Response(
             {
-                "message": (
-                    "User status updated successfully."
-                ),
+                "message": "User status updated successfully.",
                 "user": UserSerializer(user).data,
             },
             status=status.HTTP_200_OK,

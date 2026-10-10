@@ -48,11 +48,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password_confirmation")
-
         password = validated_data.pop("password")
 
         user = User(**validated_data)
         user.set_password(password)
+        user.role = "READ_ONLY"
+        user.is_admin = False
+        user.is_staff = False
+        user.is_superuser = False
         user.save()
 
         return user
@@ -69,6 +72,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_admin",
             "is_staff",
             "is_active",
+            "role",
             "created_at",
         ]
 
@@ -76,6 +80,8 @@ class UserSerializer(serializers.ModelSerializer):
             "id",
             "is_admin",
             "is_staff",
+            "is_superuser",
             "is_active",
+            "role",
             "created_at",
         ]

@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import requests
 
 from datetime import datetime, time, timedelta
@@ -20,6 +21,7 @@ from notifications.services import (
     send_low_credit_email,
 )
 
+from .fraud_detection import evaluate_transaction_fraud
 from .models import Transaction
 from .serializers import PaymentSerializer, TransactionSerializer
 
@@ -31,13 +33,31 @@ FASTAPI_PAYMENT_URL = (
 )
 
 
+def get_client_ip(request):
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+def get_device_fingerprint(request):
+    user_agent = request.META.get("HTTP_USER_AGENT", "")
+    device_id = request.headers.get("X-Device-ID", "").strip()
+
+    if not device_id:
+        return ""
+
+    fingerprint_source = f"{user_agent}|{device_id}"
+    return hashlib.sha256(
+        fingerprint_source.encode("utf-8")
+    ).hexdigest()
+
+
 class PaymentProcessView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = PaymentSerializer(
-            data=request.data
-        )
+        serializer = PaymentSerializer(data=request.data)
 
         if not serializer.is_valid():
             return Response(
@@ -48,10 +68,7 @@ class PaymentProcessView(APIView):
         card_id = serializer.validated_data["card_id"]
         amount = serializer.validated_data["amount"]
         currency = serializer.validated_data["currency"].upper()
-        description = serializer.validated_data.get(
-            "description",
-            "",
-        )
+        description = serializer.validated_data.get("description", "")
 
         try:
             card = Card.objects.get(
@@ -61,19 +78,18 @@ class PaymentProcessView(APIView):
             )
         except Card.DoesNotExist:
             return Response(
-                {
-                    "message": "Active card not found."
-                },
+                {"message": "Active card not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        client_ip = get_client_ip(request)
+        device_fingerprint = get_device_fingerprint(request)
 
         transaction_id = (
             "TXN-"
             + get_random_string(
                 12,
-                allowed_chars=(
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-                ),
+                allowed_chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
             )
         )
 
@@ -87,6 +103,8 @@ class PaymentProcessView(APIView):
             status="PENDING",
             description=description,
             failure_reason="",
+            ip_address=client_ip,
+            device_fingerprint=device_fingerprint,
         )
 
         payment_data = {
@@ -102,9 +120,7 @@ class PaymentProcessView(APIView):
                 json=payment_data,
                 timeout=10,
             )
-
             fastapi_response.raise_for_status()
-
             payment_result = fastapi_response.json()
 
         except requests.RequestException:
@@ -112,7 +128,6 @@ class PaymentProcessView(APIView):
             payment_transaction.failure_reason = (
                 "Payment service is unavailable."
             )
-
             payment_transaction.save(
                 update_fields=[
                     "status",
@@ -131,29 +146,32 @@ class PaymentProcessView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        fastapi_transaction_id = payment_result.get(
-            "transaction_id"
-        )
-
-        payment_status = payment_result.get(
-            "status",
-            "FAILED",
-        )
+        fastapi_transaction_id = payment_result.get("transaction_id")
+        payment_status = payment_result.get("status", "FAILED")
 
         payment_transaction.status = payment_status
 
         if fastapi_transaction_id:
-            payment_transaction.transaction_id = (
-                fastapi_transaction_id
-            )
+            payment_transaction.transaction_id = fastapi_transaction_id
 
         if payment_status == "SUCCESS":
             payment_transaction.failure_reason = ""
 
             if amount > Decimal("5000"):
-                send_high_value_transaction_email(
-                    payment_transaction
-                )
+                send_high_value_transaction_email(payment_transaction)
+
+            fraud_result = evaluate_transaction_fraud(
+                payment_transaction,
+                ip_address=client_ip,
+                device_fingerprint=device_fingerprint,
+            )
+
+            payment_transaction.is_suspicious = fraud_result[
+                "is_suspicious"
+            ]
+            payment_transaction.fraud_reason = " ".join(
+                fraud_result["reasons"]
+            )
 
             active_cards = Card.objects.filter(
                 user=request.user,
@@ -179,9 +197,7 @@ class PaymentProcessView(APIView):
                 Decimal("0"),
             )
 
-            available_credit = (
-                total_credit_limit - successful_spending
-            )
+            available_credit = total_credit_limit - successful_spending
 
             if (
                 total_credit_limit > 0
@@ -195,11 +211,9 @@ class PaymentProcessView(APIView):
                 )
 
         else:
-            payment_transaction.failure_reason = (
-                payment_result.get(
-                    "message",
-                    "Payment failed.",
-                )
+            payment_transaction.failure_reason = payment_result.get(
+                "message",
+                "Payment failed.",
             )
 
         payment_transaction.save(
@@ -207,6 +221,10 @@ class PaymentProcessView(APIView):
                 "transaction_id",
                 "status",
                 "failure_reason",
+                "is_suspicious",
+                "fraud_reason",
+                "ip_address",
+                "device_fingerprint",
                 "updated_at",
             ]
         )
@@ -232,57 +250,30 @@ class TransactionHistoryView(generics.ListAPIView):
     def get_queryset(self):
         queryset = Transaction.objects.filter(
             user=self.request.user
-        ).select_related(
-            "card"
-        )
+        ).select_related("card")
 
-        transaction_status = self.request.query_params.get(
-            "status"
-        )
-
-        currency = self.request.query_params.get(
-            "currency"
-        )
-
-        min_amount = self.request.query_params.get(
-            "min_amount"
-        )
-
-        max_amount = self.request.query_params.get(
-            "max_amount"
-        )
-
-        from_date = self.request.query_params.get(
-            "from_date"
-        )
-
-        to_date = self.request.query_params.get(
-            "to_date"
-        )
+        transaction_status = self.request.query_params.get("status")
+        currency = self.request.query_params.get("currency")
+        min_amount = self.request.query_params.get("min_amount")
+        max_amount = self.request.query_params.get("max_amount")
+        from_date = self.request.query_params.get("from_date")
+        to_date = self.request.query_params.get("to_date")
 
         if transaction_status:
-            queryset = queryset.filter(
-                status=transaction_status.upper()
-            )
+            queryset = queryset.filter(status=transaction_status.upper())
 
         if currency:
-            queryset = queryset.filter(
-                currency=currency.upper()
-            )
+            queryset = queryset.filter(currency=currency.upper())
 
         if min_amount:
             try:
-                queryset = queryset.filter(
-                    amount__gte=min_amount
-                )
+                queryset = queryset.filter(amount__gte=min_amount)
             except (TypeError, ValueError):
                 pass
 
         if max_amount:
             try:
-                queryset = queryset.filter(
-                    amount__lte=max_amount
-                )
+                queryset = queryset.filter(amount__lte=max_amount)
             except (TypeError, ValueError):
                 pass
 
@@ -292,14 +283,9 @@ class TransactionHistoryView(generics.ListAPIView):
                     from_date,
                     "%Y-%m-%d",
                 ).date()
-
                 start_datetime = timezone.make_aware(
-                    datetime.combine(
-                        start_date,
-                        time.min,
-                    )
+                    datetime.combine(start_date, time.min)
                 )
-
                 queryset = queryset.filter(
                     created_at__gte=start_datetime
                 )
@@ -312,14 +298,12 @@ class TransactionHistoryView(generics.ListAPIView):
                     to_date,
                     "%Y-%m-%d",
                 ).date()
-
                 end_datetime = timezone.make_aware(
                     datetime.combine(
                         end_date + timedelta(days=1),
                         time.min,
                     )
                 )
-
                 queryset = queryset.filter(
                     created_at__lt=end_datetime
                 )
@@ -335,22 +319,14 @@ class TransactionExportView(APIView):
     def get(self, request):
         transactions = Transaction.objects.filter(
             user=request.user
-        ).order_by(
-            "-created_at"
-        )
+        ).order_by("-created_at")
 
-        response = HttpResponse(
-            content_type="text/csv"
-        )
-
-        response[
-            "Content-Disposition"
-        ] = (
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
             'attachment; filename="transactions.csv"'
         )
 
         writer = csv.writer(response)
-
         writer.writerow(
             [
                 "Transaction ID",

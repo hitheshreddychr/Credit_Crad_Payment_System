@@ -12,11 +12,13 @@ class TransactionAdmin(admin.ModelAdmin):
         "currency",
         "payment_method",
         "status",
+        "is_suspicious",
         "created_at",
     )
 
     list_filter = (
         "status",
+        "is_suspicious",
         "payment_method",
         "currency",
         "created_at",
@@ -26,6 +28,7 @@ class TransactionAdmin(admin.ModelAdmin):
         "transaction_id",
         "user__username",
         "user__email",
+        "fraud_reason",
     )
 
     readonly_fields = (
